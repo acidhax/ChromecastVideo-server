@@ -12,6 +12,9 @@ var ffmpeg = require('fluent-ffmpeg');
 var app = express();
 var fs = require('fs');
 var path = require('path');
+var streamBuffers = require("stream-buffers");
+var streamifier = require('streamifier');
+var formidable = require('formidable');
 
 // all environments
 app.set('port', process.env.PORT || 3000);
@@ -25,6 +28,8 @@ app.use(express.methodOverride());
 app.use(app.router);
 app.use(express.static(path.join(__dirname, 'public')));
 
+var files = {};
+
 // development only
 if ('development' == app.get('env')) {
   app.use(express.errorHandler());
@@ -34,11 +39,26 @@ app.get('/', function (req, res) {
   res.render('index', {title: "title"});
 });
 
-app.get('/codec', function (req, res) {
-  var movie = req.query.path || "C:\\Users\\Mathieu\\Downloads\\IFrankenstein\\I.Frankenstein.2014.HDScr.x264.AC3.mkv";
-  var f = new ffmpeg.Metadata(movie,function(metadata, err) {
-    res.send(err, metadata);
+app.post('/codec', function (req, res) {
+  var form = new formidable.IncomingForm();
+  form.maxFieldsSize = 1000000000;
+  form.parse(req, function(err, fields, files) {
+    console.log(fields.filename);
+    var file = fields.file.replace('data:;base64,', '');
+    var lastBlob = fields.lastBlob;
+    console.log("lastBlob", lastBlob);
+    var movie = req.query.path || "C:\\Users\\Mathieu\\Downloads\\big_buck_bunny.mp4";
+    fs.appendFileSync(fields.filename, new Buffer(file, 'base64'), {encoding: "base64"});
+    if (lastBlob) {
+      var f = new ffmpeg.Metadata("C:\\Users\\Mathieu\\Dev\\chromestream-server\\" + fields.filename, function(metadata, err) {
+        console.log(metadata, err);
+        res.send({err: err, metadata: metadata});
+      });
+    } else {
+      res.end();
+    }
   });
+
 });
 
 app.get('/stream', function (req, res) {
@@ -56,6 +76,7 @@ app.get('/stream', function (req, res) {
       if (!supportedVideoCodecs[metadata.video.codec.toLowerCase()]) {
         // TODO: Convert video to MP4
       } else {
+        proc
         .addOptions(['-vcodec copy'])
         .addOptions(['-f ' + metadata.video.container])
       }
